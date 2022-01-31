@@ -1,0 +1,172 @@
+﻿@page "/"
+@using System.Net.Http;
+@using System.Net.Http.Json;
+@using Newtonsoft.Json;
+@inject HttpClient client
+
+@if (products != null)
+{
+  
+
+    <h2>Select a Product</h2>
+    <table class="table">
+        <thead>
+            <tr>
+              
+                <th>Name</th>
+                <th>Price</th>
+            </tr>
+        </thead>
+          </table>
+    //Display the list of products. Call ProductSelected when one is selected
+    <select size="10" style="width:100%;" @onchange="ProductSelected">
+        @foreach (var product in products)
+        {
+             <option value="@product.Id.ToString()">@product.Title      "€"@product.Price </option>
+             
+        }
+    </select>
+    <br />
+
+    // Show the selected product
+    @if (SelectedProduct != null && ShowItem == true)
+    {
+        <div style="padding:1vw;background-color:lightgray;">
+            <table cellpadding="5" cellspacing="5">
+                <tr>
+                    <td align="right" valign="top"><strong>Name:</strong></td>
+                    <td align="left" valign="top">@SelectedProduct.Title</td>
+                </tr>
+                
+                <tr>
+                    <td align="right" valign="top"><strong>Price:</strong></td>
+                    <td align="left" valign="top">€@SelectedProduct.Price</td>
+                </tr>
+                <tr>
+                    <td align="right" valign="top"><strong>Add To Cart:</strong></td>
+                    <td align="left" valign="top">
+                        Quantity:
+                        <input @bind="Quantity" />
+                        <button @onclick="AddToCart">Add</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    }
+
+    // Show the cart contents if there are items in it.
+    @if (CartStateProvider != null && CartStateProvider.ShoppingCart.Items.Count > 0)
+    {
+        <br />
+        <h3>Your Cart:</h3>
+        <h4>Total: €@CartStateProvider.ShoppingCart.Total</h4>
+        <table cellpadding="5" cellspacing="5">
+            @foreach (var item in CartStateProvider.ShoppingCart.Items)
+            {
+                <tr>
+                    <td colspan="2">
+                        <hr />
+                    </td>
+                </tr>
+                <tr>
+                    <td align="right" valign="top"><strong>Name:</strong></td>
+                    <td align="left" valign="top">@item.Product.Title</td>
+                </tr>
+               
+                <tr>
+                    <td  align="right" valign="top"><strong>Price:</strong></td>
+                    <td align="left" valign="top">€@item.Product.Price</td>
+                </tr>
+                <tr>
+                    <td align="right" valign="top"><strong>Quantity:</strong></td>
+                    <td align="left" valign="top">@item.Quantity</td>
+                </tr>
+                <tr>
+                    <td align="right" valign="top"><strong>Total:</strong></td>
+                    <td align="left" valign="top">€@item.Total</td>
+                </tr>
+                <tr>
+                    <td colspan="2">
+                        @*Clicking this button passes the item so we can remove it*@
+                        <button @onclick="@(() => RemoveItem(@item))">Remove</button>
+                    </td>
+                </tr>
+            }
+        </table>
+        <br />
+        <h4>Total: $@CartStateProvider.ShoppingCart.Total</h4>
+    }
+
+}
+
+@code {
+
+    // Cascading Parameters and Values flow down the entire component tree
+    [CascadingParameter] CartStateProvider CartStateProvider { get; set; }
+
+    bool ShowItem = false;
+    int CartItemIndex = 0;
+    string Quantity = "1";
+   
+    private List<Products> products;
+    Products SelectedProduct;
+
+    void ProductSelected(ChangeEventArgs args)
+    {
+        // User clicked on an item in the list.
+        // Show the product and give them an option to add to cart.
+        SelectedProduct = (from x in products
+                           where x.Id == Convert.ToInt32(args.Value)
+                           select x).First();
+        Quantity = "1";
+        ShowItem = true;
+    }
+
+    async Task AddToCart()
+    {
+        // Create a new item for the shopping cart
+        var item = new CartProduct
+        {
+            Product = SelectedProduct,
+            Quantity = Convert.ToInt32(Quantity)
+        };
+       
+        // Add it to the cart
+        CartStateProvider.ShoppingCart.Items.Add(item);
+        // Save to local storage
+        await CartStateProvider.SaveChangesAsync();
+        // Stop displaying the selected item
+        ShowItem = false;
+    }
+
+    async Task RemoveItem(CartProduct Item)
+    {
+        // User clicked a Remove button to remove an item from the cart.
+        CartStateProvider.ShoppingCart.Items.Remove(Item);
+        // Update the cart - save to localstorage
+        await CartStateProvider.SaveChangesAsync();
+    }
+
+      [Inject]
+        private HttpClient Http { get; set; }
+
+        protected override async Task OnInitializedAsync()
+        {
+            products = await client.GetFromJsonAsync<List<Products>>("products");
+             
+        }
+       
+  
+        private async void GetUser(HttpClient httpClient)
+        {
+            var apiName = "products";
+            var httpResponse = await httpClient.GetAsync(apiName);
+
+            if (httpResponse.IsSuccessStatusCode)
+            {
+               
+                StateHasChanged();
+                
+            }
+        }
+}
